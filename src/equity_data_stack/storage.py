@@ -103,7 +103,6 @@ class StorageManager:
         self._write_or_merge(path, snapshot_df, dedupe_on=["symbol"])
         return path
 
-    def write_notional_table(self, df: pd.DataFrame) -> Path:
     def _normalize_bars(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate bar schema, enforce UTC timestamps, and dedupe."""
         missing = REQUIRED_BAR_COLUMNS - set(df.columns)
