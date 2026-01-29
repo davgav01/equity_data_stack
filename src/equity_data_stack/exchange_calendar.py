@@ -14,7 +14,7 @@ References:
     https://pypi.org/project/exchange-calendars
 """
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from functools import lru_cache
 
 import exchange_calendars as xcals
@@ -70,7 +70,7 @@ def get_next_trading_day(input_date: date | None = None) -> date:
     cal = _get_nyse_calendar()
 
     if input_date is None:
-        input_date = datetime.now(timezone.utc).date()
+        input_date = datetime.now(UTC).date()
 
     # This will move to the next session if input_date is not a session.
     next_session = cal.date_to_session(input_date, direction="next")
