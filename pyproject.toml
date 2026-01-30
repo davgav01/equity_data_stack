@@ -15,7 +15,6 @@ authors = [{ name = "David Gavin", email = "davidgavin01@gmail.com" }]
 dependencies = [
   "massive>=2.0.0",
   "boto3>=1.34",
-  "duckdb>=0.10.0",
   "exchange-calendars>=4.3",
   "pandas>=2.1",
   "pyarrow>=14.0",
@@ -31,6 +30,9 @@ dev = [
   "mypy>=1.8",
   "types-requests>=2.31",
 ]
+duckdb = [
+  "duckdb>=0.10.0",
+]
 
 [project.scripts]
 equity-stack = "equity_data_stack.cli:app"
@@ -42,8 +44,8 @@ include = ["equity_data_stack*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-select = ["E", "F", "I", "UP", "B", "SIM", "PIE"]
-ignore = ["E203", "E501"]
+lint.select = ["E", "F", "I", "UP", "B", "SIM", "PIE"]
+lint.ignore = ["E203", "E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

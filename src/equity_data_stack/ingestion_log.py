@@ -2,7 +2,7 @@
 
 import os
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -40,7 +40,7 @@ class IngestionLog:
             "date": trading_day.isoformat(),
             "freq": freq,
             "status": status,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
         df = pd.concat([df, pd.DataFrame([entry])], ignore_index=True)
 

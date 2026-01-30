@@ -18,16 +18,28 @@ from equity_data_stack.storage import StorageManager
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
+DATA_ROOT_OPTION = typer.Option(None, help="Override DATA_ROOT")
+START_OPTION = typer.Option(..., help="Start date YYYY-MM-DD")
+END_OPTION = typer.Option(..., help="End date YYYY-MM-DD")
+OPTIONAL_START_OPTION = typer.Option(None, help="Start date YYYY-MM-DD")
+OPTIONAL_END_OPTION = typer.Option(None, help="End date YYYY-MM-DD")
+PREFIX_OPTION = typer.Option(
+    None, help="Dataset prefix (default from MASSIVE_S3_PREFIX)"
+)
+EXT_OPTION = typer.Option("csv.gz", help="File extension (default csv.gz)")
+FREQ_OPTION = typer.Option("1d", help="Frequency: 1d or 1min")
+WRITE_UNIVERSE_OPTION = typer.Option(
+    False, help="Write daily universe snapshots with notional"
+)
+
 
 @app.command()
 def sync(
-    freq: str = typer.Option("1d", help="Frequency: 1d or 1min"),
-    start: str = typer.Option(..., help="Start date YYYY-MM-DD"),
-    end: str = typer.Option(..., help="End date YYYY-MM-DD"),
-    data_root: Path | None = typer.Option(None, help="Override DATA_ROOT"),
-    write_universe: bool = typer.Option(
-        False, help="Write daily universe snapshots with notional"
-    ),
+    freq: str = FREQ_OPTION,
+    start: str = START_OPTION,
+    end: str = END_OPTION,
+    data_root: Path | None = DATA_ROOT_OPTION,
+    write_universe: bool = WRITE_UNIVERSE_OPTION,
 ) -> None:
     settings = Settings()
     if data_root:
@@ -56,7 +68,7 @@ def sync(
 
 @app.command(name="sync-security-master")
 def sync_security_master_cmd(
-    data_root: Path | None = typer.Option(None, help="Override DATA_ROOT"),
+    data_root: Path | None = DATA_ROOT_OPTION,
 ) -> None:
     settings = Settings()
     if data_root:
@@ -73,9 +85,9 @@ def sync_security_master_cmd(
 
 @app.command(name="sync-corporate-actions")
 def sync_corporate_actions_cmd(
-    data_root: Path | None = typer.Option(None, help="Override DATA_ROOT"),
-    start: str | None = typer.Option(None, help="Start date YYYY-MM-DD"),
-    end: str | None = typer.Option(None, help="End date YYYY-MM-DD"),
+    data_root: Path | None = DATA_ROOT_OPTION,
+    start: str | None = OPTIONAL_START_OPTION,
+    end: str | None = OPTIONAL_END_OPTION,
 ) -> None:
     settings = Settings()
     if data_root:
@@ -94,13 +106,11 @@ def sync_corporate_actions_cmd(
 
 @app.command(name="sync-flat-files")
 def sync_flat_files_cmd(
-    start: str = typer.Option(..., help="Start date YYYY-MM-DD"),
-    end: str = typer.Option(..., help="End date YYYY-MM-DD"),
-    prefix: str | None = typer.Option(
-        None, help="Dataset prefix (default from MASSIVE_S3_PREFIX)"
-    ),
-    data_root: Path | None = typer.Option(None, help="Override DATA_ROOT"),
-    ext: str = typer.Option("csv.gz", help="File extension (default csv.gz)"),
+    start: str = START_OPTION,
+    end: str = END_OPTION,
+    prefix: str | None = PREFIX_OPTION,
+    data_root: Path | None = DATA_ROOT_OPTION,
+    ext: str = EXT_OPTION,
 ) -> None:
     settings = Settings()
     if data_root:

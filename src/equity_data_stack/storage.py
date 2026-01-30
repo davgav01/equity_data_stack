@@ -1,6 +1,5 @@
 """Storage manager for parquet-backed data lake."""
 
-import logging
 import os
 from dataclasses import dataclass
 from datetime import date

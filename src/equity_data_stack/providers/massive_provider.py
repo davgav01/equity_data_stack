@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from equity_data_stack.exchange_calendar import get_trading_days
 from equity_data_stack.providers.base import ProviderInterface
 from equity_data_stack.settings import Settings
 
