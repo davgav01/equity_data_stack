@@ -14,7 +14,9 @@ DATA_ROOT/
 ├── security_master.parquet
 ├── corporate_actions/
 │   ├── splits.parquet
-│   └── dividends.parquet
+│   ├── dividends.parquet
+│   ├── split_ratios.parquet
+│   └── cash_dividends.parquet
 ├── universe/
 │   └── snapshots/date=YYYY-MM-DD.parquet
 ├── bars/
@@ -52,6 +54,9 @@ equity-stack sync --freq 1min --start 2020-01-01 --end 2020-12-31
 equity-stack sync-security-master
 equity-stack sync-corporate-actions --start 2020-01-01 --end 2020-12-31
 
+# Build split/dividend tables
+equity-stack build-corporate-actions-tables --start 2020-01-01 --end 2020-12-31
+
 ```
 
 ## Python API
@@ -65,6 +70,44 @@ prices = load_prices(
     start=datetime(2022, 1, 1),
     end=datetime(2022, 12, 31),
     fields=["close"],
+)
+
+from equity_data_stack import (
+    apply_price_adjustments,
+    load_dividend_cash_table,
+    load_split_ratio_table,
+)
+
+split_ratios = load_split_ratio_table(
+    data_root="DATA_ROOT",
+    start=datetime(2022, 1, 1).date(),
+    end=datetime(2022, 12, 31).date(),
+    symbols=["AAPL", "MSFT"],
+)
+dividend_cash = load_dividend_cash_table(
+    data_root="DATA_ROOT",
+    start=datetime(2022, 1, 1).date(),
+    end=datetime(2022, 12, 31).date(),
+    symbols=["AAPL", "MSFT"],
+)
+adjusted = apply_price_adjustments(prices, split_ratios, dividend_cash)
+
+# Or load adjusted prices/volumes directly
+from equity_data_stack import load_adjusted_prices, load_adjusted_volumes
+
+adj_prices = load_adjusted_prices(
+    data_root="DATA_ROOT",
+    freq="1d",
+    symbols=["AAPL", "MSFT"],
+    start=datetime(2022, 1, 1),
+    end=datetime(2022, 12, 31),
+)
+adj_volume = load_adjusted_volumes(
+    data_root="DATA_ROOT",
+    freq="1d",
+    symbols=["AAPL", "MSFT"],
+    start=datetime(2022, 1, 1),
+    end=datetime(2022, 12, 31),
 )
 ```
 

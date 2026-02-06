@@ -180,3 +180,4 @@ notebooks/
 #  temporary files
 *.tmp
 
+.editorconfig
