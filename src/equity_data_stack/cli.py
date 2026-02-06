@@ -5,6 +5,7 @@ from pathlib import Path
 
 import typer
 
+from equity_data_stack.corporate_actions import build_corporate_actions_tables
 from equity_data_stack.ingest import (
     backfill_bars,
     sync_corporate_actions,
@@ -102,6 +103,31 @@ def sync_corporate_actions_cmd(
     end_date = date.fromisoformat(end) if end else None
     paths = sync_corporate_actions(provider, storage, start=start_date, end=end_date)
     typer.echo("Sync corporate actions complete. Wrote " + ", ".join(paths))
+
+
+@app.command(name="build-corporate-actions-tables")
+def build_corporate_actions_tables_cmd(
+    data_root: Path | None = DATA_ROOT_OPTION,
+    start: str | None = OPTIONAL_START_OPTION,
+    end: str | None = OPTIONAL_END_OPTION,
+) -> None:
+    settings = Settings()
+    if data_root:
+        settings.data_root = data_root
+    settings.ensure_data_root()
+
+    typer.echo("Build corporate actions table start")
+    start_date = date.fromisoformat(start) if start else None
+    end_date = date.fromisoformat(end) if end else None
+    split_path, dividend_path = build_corporate_actions_tables(
+        settings.data_root,
+        start=start_date,
+        end=end_date,
+    )
+    typer.echo(
+        "Build corporate actions table complete. Wrote "
+        f"{split_path}, {dividend_path}"
+    )
 
 
 @app.command(name="sync-flat-files")
