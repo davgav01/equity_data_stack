@@ -116,5 +116,3 @@ adj_volume = load_adjusted_volumes(
 - Tests: `pytest`
 - Format: `ruff check . --fix` (optional)
 
-## Status
-Early implementation per `spec.md`. Expect breaking changes while core interfaces settle.

@@ -49,8 +49,6 @@ def get_session_times(input_date: date) -> tuple[pd.Timestamp, pd.Timestamp]:
     """Get the open and close of a trading day"""
     cal = _get_nyse_calendar()
 
-    print(cal.first_session)
-    print(cal.last_session)
     if cal.is_session(input_date):
         return cal.session_open(input_date), cal.session_close(input_date)
 
@@ -98,13 +96,17 @@ def get_previous_trading_day(input_date: date) -> date:
 
 def get_previous_n_trading_days(input_date: date, n: int) -> list[date]:
     cal = _get_nyse_calendar()
+    if n < 0:
+        raise ValueError("n must be non-negative")
+    if n == 0:
+        return []
     prev_trading_days = []
-    current_date = input_date
+    current = input_date
     while n > 0:
-        prev_date = cal.previous_session(current_date)
-        prev_trading_days.append(prev_date.date())
+        prev = cal.previous_session(current)
+        prev_trading_days.append(prev.date())
         n -= 1
-        current_date = prev_date
+        current = prev.date()
 
     return prev_trading_days
 
