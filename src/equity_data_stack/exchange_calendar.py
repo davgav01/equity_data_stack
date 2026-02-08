@@ -45,24 +45,22 @@ def is_trading_day(input_date: date) -> bool:
     return cal.is_session(input_date)
 
 
-def get_session_open(input_date: date) -> pd.Timestamp:
-    """Get the open of a trading day"""
+def get_session_times(input_date: date) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Get the open and close of a trading day"""
     cal = _get_nyse_calendar()
 
+    print(cal.first_session)
+    print(cal.last_session)
     if cal.is_session(input_date):
-        return cal.session_open(input_date)
+        return cal.session_open(input_date), cal.session_close(input_date)
 
     raise ValueError(f"{input_date} is not a trading day")
 
 
-def get_session_close(input_date: date) -> pd.Timestamp:
-    """Get the close of a trading day"""
+def get_trading_minutes(start: date, end: date) -> pd.DatetimeIndex:
     cal = _get_nyse_calendar()
-
-    if cal.is_session(input_date):
-        return cal.session_close(input_date)
-
-    raise ValueError(f"{input_date} is not a trading day")
+    # exchange_calendars returns only session minutes (handles early closes)
+    return cal.minutes_in_range(start, end)
 
 
 def get_next_trading_day(input_date: date | None = None) -> date:
@@ -98,6 +96,19 @@ def get_previous_trading_day(input_date: date) -> date:
     return cal.previous_session(input_date).date()
 
 
+def get_previous_n_trading_days(input_date: date, n: int) -> list[date]:
+    cal = _get_nyse_calendar()
+    prev_trading_days = []
+    current_date = input_date
+    while n > 0:
+        prev_date = cal.previous_session(current_date)
+        prev_trading_days.append(prev_date.date())
+        n -= 1
+        current_date = prev_date
+
+    return prev_trading_days
+
+
 if __name__ == "__main__":
     test_start = date(2024, 1, 1)
     test_end = date(2024, 1, 11)
@@ -107,11 +118,6 @@ if __name__ == "__main__":
 
     print(is_trading_day(test_start))
     print(is_trading_day(test_end))
-
-    print("Session open of test_start:")
-    print(get_session_open(test_end))
-    print("Session close of test_end:")
-    print(get_session_close(test_end))
 
     print(f"Next trading day after {test_start}:")
     print(get_next_trading_day(test_start))
