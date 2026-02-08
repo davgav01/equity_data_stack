@@ -1,11 +1,10 @@
 """Corporate actions utilities for split/dividend tables and adjustments."""
 
+import warnings
 from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
-
-from equity_data_stack.query import load_prices
 
 SPLIT_RATIO_FILENAME = "split_ratios.parquet"
 DIVIDEND_CASH_FILENAME = "cash_dividends.parquet"
@@ -98,6 +97,7 @@ def compute_split_factors(
     ratios = split_ratios.reindex(
         index=daily_prices.index, columns=daily_prices.columns
     ).fillna(1.0)
+    ratios = _sanitize_split_ratios(ratios)
 
     factors_daily = _backward_factors(ratios)
     return _align_factors_to_prices(factors_daily, prices)
@@ -119,11 +119,12 @@ def compute_dividend_factors(
     ).fillna(0.0)
 
     # Use prior trading-day close for dividend adjustment (standard convention).
-    prior_close = daily_prices.shift(1)
-    denom = prior_close.fillna(daily_prices)
+    prior_close = daily_prices.ffill().shift(1)
+    denom = prior_close.where(prior_close.notna(), daily_prices)
 
     ratio = 1 - cash.div(denom)
     ratio = ratio.replace([float("inf"), float("-inf")], 1.0).fillna(1.0)
+    ratio = _sanitize_dividend_ratios(ratio, cash)
     factors_daily = _backward_factors(ratio)
     return _align_factors_to_prices(factors_daily, prices)
 
@@ -153,70 +154,6 @@ def apply_volume_adjustments(
     return volumes.div(split_factors)
 
 
-def load_adjusted_prices(
-    *,
-    data_root: Path,
-    freq: str,
-    symbols: list[str],
-    start: datetime,
-    end: datetime,
-    price_field: str = "close",
-) -> pd.DataFrame:
-    """Load prices and apply split/dividend adjustments."""
-    print(data_root)
-    prices = load_prices(
-        freq=freq,
-        symbols=symbols,
-        start=start,
-        end=end,
-        fields=[price_field],
-        data_root=data_root,
-    )
-    print(data_root)
-    split_ratios = load_split_ratio_table(
-        data_root,
-        start=start.date(),
-        end=end.date(),
-        symbols=symbols,
-    )
-    dividend_cash = load_dividend_cash_table(
-        data_root,
-        start=start.date(),
-        end=end.date(),
-        symbols=symbols,
-    )
-    return apply_price_adjustments(
-        prices, split_ratios, dividend_cash, price_field=price_field
-    )
-
-
-def load_adjusted_volumes(
-    *,
-    data_root: Path,
-    freq: str,
-    symbols: list[str],
-    start: datetime,
-    end: datetime,
-    volume_field: str = "volume",
-) -> pd.DataFrame:
-    """Load volumes and apply split adjustments."""
-    volumes = load_prices(
-        freq=freq,
-        symbols=symbols,
-        start=start,
-        end=end,
-        fields=[volume_field],
-        data_root=data_root,
-    )
-    split_ratios = load_split_ratio_table(
-        data_root,
-        start=start.date(),
-        end=end.date(),
-        symbols=symbols,
-    )
-    return apply_volume_adjustments(volumes, split_ratios)
-
-
 def _build_split_ratio_table(
     splits: pd.DataFrame,
     start: date | None,
@@ -232,7 +169,12 @@ def _build_split_ratio_table(
     if end is not None:
         splits = splits[splits["date"] <= end]
 
+    splits["split_from"] = pd.to_numeric(splits["split_from"], errors="coerce")
+    splits["split_to"] = pd.to_numeric(splits["split_to"], errors="coerce")
     splits["split_ratio"] = splits["split_from"] / splits["split_to"]
+    splits = splits.replace([float("inf"), float("-inf")], pd.NA)
+    splits = splits.dropna(subset=["split_ratio"])
+    splits = splits[splits["split_ratio"] > 0]
     split_wide = splits.pivot_table(
         index="date", columns="symbol", values="split_ratio", aggfunc="prod"
     )
@@ -254,6 +196,9 @@ def _build_dividend_cash_table(
     if end is not None:
         dividends = dividends[dividends["date"] <= end]
 
+    dividends["cash_amount"] = pd.to_numeric(dividends["cash_amount"], errors="coerce")
+    dividends = dividends.dropna(subset=["cash_amount"])
+    dividends = dividends[dividends["cash_amount"] != 0]
     div_wide = dividends.pivot_table(
         index="date", columns="symbol", values="cash_amount", aggfunc="sum"
     )
@@ -306,7 +251,7 @@ def _align_factors_to_prices(
     if isinstance(prices.index, pd.DatetimeIndex):
         aligned = factors_daily.reindex(prices.index.date)
         aligned.index = prices.index
-        return aligned
+        return aligned.fillna(1.0)
     return factors_daily.reindex(prices.index).fillna(1.0)
 
 
@@ -320,3 +265,32 @@ def _ensure_price_frame(
             raise ValueError(f"Missing field '{price_field}' in price columns")
         return prices[price_field]
     return prices
+
+
+def _sanitize_split_ratios(ratios: pd.DataFrame) -> pd.DataFrame:
+    """Enforce strictly-positive split ratios (invalid values become 1.0)."""
+    invalid = ~ratios.gt(0)  # includes NaN
+    if invalid.to_numpy().any():
+        count = int(invalid.sum().sum())
+        warnings.warn(
+            f"Invalid split ratios encountered (count={count}); treating as no-op.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        ratios = ratios.mask(invalid, 1.0)
+    return ratios
+
+
+def _sanitize_dividend_ratios(ratios: pd.DataFrame, cash: pd.DataFrame) -> pd.DataFrame:
+    """Enforce dividend ratios in (0, 1] when cash is positive."""
+    cash_positive = cash.gt(0)
+    invalid = cash_positive & (~ratios.gt(0) | ratios.gt(1))
+    if invalid.to_numpy().any():
+        count = int(invalid.sum().sum())
+        warnings.warn(
+            f"Invalid dividend ratios encountered (count={count}); treating as no-op.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        ratios = ratios.mask(invalid, 1.0)
+    return ratios
