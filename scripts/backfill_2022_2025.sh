@@ -33,4 +33,7 @@ equity-stack sync-security-master
 echo "Sync corporate actions (REST, scoped)"
 equity-stack sync-corporate-actions --start "${START_DATE}" --end "${END_DATE}"
 
+echo "Build split/dividend tables"
+equity-stack build-corporate-actions-tables --start "${START_DATE}" --end "${END_DATE}"
+
 echo "Backfill complete"
