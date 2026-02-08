@@ -6,6 +6,7 @@ from equity_data_stack.corporate_actions import (
     apply_price_adjustments,
     apply_volume_adjustments,
     build_corporate_actions_tables,
+    compute_dividend_factors,
     load_dividend_cash_table,
     load_split_ratio_table,
 )
@@ -105,3 +106,21 @@ def test_apply_price_and_volume_adjustments(tmp_path: Path) -> None:
     assert adjusted_volumes.loc[pd.Timestamp("2024-01-01"), "AAA"] == 2000.0
     assert adjusted_volumes.loc[pd.Timestamp("2024-01-02"), "AAA"] == 1200.0
     assert adjusted_volumes.loc[pd.Timestamp("2024-01-03"), "AAA"] == 1100.0
+
+
+def test_dividend_factor_uses_previous_available_close() -> None:
+    prices = pd.DataFrame(
+        {"AAA": [100.0, None, 90.0]},
+        index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+    )
+    dividend_cash = pd.DataFrame(
+        {"AAA": [1.0]},
+        index=[pd.Timestamp("2024-01-03").date()],
+    )
+
+    factors = compute_dividend_factors(prices, dividend_cash)
+    expected_ratio = (100.0 - 1.0) / 100.0
+
+    assert factors.loc[pd.Timestamp("2024-01-01"), "AAA"] == expected_ratio
+    assert factors.loc[pd.Timestamp("2024-01-02"), "AAA"] == expected_ratio
+    assert factors.loc[pd.Timestamp("2024-01-03"), "AAA"] == 1.0

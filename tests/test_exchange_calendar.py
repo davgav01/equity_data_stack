@@ -32,8 +32,7 @@ def test_is_trading_day_weekday_true():
 def test_session_open_close_trading_day():
     trading_day = date(2024, 2, 6)
 
-    open_ts = ec.get_session_open(trading_day)
-    close_ts = ec.get_session_close(trading_day)
+    open_ts, close_ts = ec.get_session_times(trading_day)
 
     assert isinstance(open_ts, pd.Timestamp)
     assert isinstance(close_ts, pd.Timestamp)
@@ -46,10 +45,7 @@ def test_session_open_close_non_trading_day_raises():
     non_trading_day = date(2024, 2, 3)  # Saturday
 
     with pytest.raises(ValueError, match="not a trading day"):
-        ec.get_session_open(non_trading_day)
-
-    with pytest.raises(ValueError, match="not a trading day"):
-        ec.get_session_close(non_trading_day)
+        ec.get_session_times(non_trading_day)
 
 
 def test_get_next_trading_day_same_day_when_session():
