@@ -90,3 +90,82 @@ def test_load_prices_rejects_invalid_fields(tmp_path: Path) -> None:
             fields=["bad"],
             data_root=tmp_path,
         )
+
+
+def test_load_prices_1min_reindex_no_lookahead_fill(tmp_path: Path) -> None:
+    storage = StorageManager(tmp_path)
+    df = pd.DataFrame(
+        [
+            {
+                "timestamp": datetime(2024, 1, 2, 14, 31),
+                "symbol": "AAPL",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "vwap": 100.2,
+                "volume": 1000,
+                "n_trades": 10,
+            },
+            {
+                "timestamp": datetime(2024, 1, 2, 14, 32),
+                "symbol": "AAPL",
+                "open": 100.5,
+                "high": 101.2,
+                "low": 100.1,
+                "close": 101.0,
+                "vwap": 100.8,
+                "volume": 2000,
+                "n_trades": 20,
+            },
+        ]
+    )
+    storage.write_bars(df, "1min")
+
+    result = load_prices(
+        freq="1min",
+        symbols=["AAPL"],
+        start=datetime(2024, 1, 2, 14, 30),
+        end=datetime(2024, 1, 2, 14, 32),
+        fields=["close"],
+        data_root=tmp_path,
+        fill_missing_bars=True,
+    )
+
+    assert pd.Timestamp("2024-01-02 14:30:00+00:00") in result.index
+    assert pd.isna(result.loc[pd.Timestamp("2024-01-02 14:30:00+00:00"), "AAPL"])
+    assert result.loc[pd.Timestamp("2024-01-02 14:31:00+00:00"), "AAPL"] == 100.5
+    assert result.loc[pd.Timestamp("2024-01-02 14:32:00+00:00"), "AAPL"] == 101.0
+
+
+def test_load_prices_1min_volume_missing_fills_zero(tmp_path: Path) -> None:
+    storage = StorageManager(tmp_path)
+    df = pd.DataFrame(
+        [
+            {
+                "timestamp": datetime(2024, 1, 2, 14, 31),
+                "symbol": "AAPL",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "vwap": 100.2,
+                "volume": 1000,
+                "n_trades": 10,
+            },
+        ]
+    )
+    storage.write_bars(df, "1min")
+
+    result = load_prices(
+        freq="1min",
+        symbols=["AAPL"],
+        start=datetime(2024, 1, 2, 14, 30),
+        end=datetime(2024, 1, 2, 14, 31),
+        fields=["volume"],
+        data_root=tmp_path,
+        fill_missing_bars=True,
+    )
+
+    assert result.loc[pd.Timestamp("2024-01-02 14:30:00+00:00"), "AAPL"] == 0
+    assert result.loc[pd.Timestamp("2024-01-02 14:31:00+00:00"), "AAPL"] == 1000

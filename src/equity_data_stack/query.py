@@ -51,8 +51,11 @@ def load_prices(
     )
 
     conn = duckdb.connect()
-    params = [*symbols, start_ts, end_ts]
-    df = conn.execute(sql, params).df()
+    try:
+        params = [*symbols, start_ts, end_ts]
+        df = conn.execute(sql, params).df()
+    finally:
+        conn.close()
 
     if df.empty:
         return df
@@ -67,12 +70,11 @@ def load_prices(
     wide = wide.sort_index()
 
     if freq == "1min":
-        minutes = get_trading_minutes(start, end)
+        minutes = get_trading_minutes(start_ts, end_ts)
         wide = wide.reindex(minutes)
 
     if fill_missing_bars:
-        wide = wide.ffill()
-        wide = wide.bfill()
+        wide = _fill_missing_bars(wide, fields)
 
     return wide
 
@@ -142,7 +144,7 @@ def load_adjusted_volumes(
 def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
-    return value
+    return value.astimezone(UTC)
 
 
 def _sanitize_identifier(value: str) -> str:
@@ -161,3 +163,26 @@ def _sanitize_identifier(value: str) -> str:
     if value not in allowed:
         raise ValueError(f"Unsupported field: {value}")
     return value
+
+
+def _fill_missing_bars(wide: pd.DataFrame, fields: list[str]) -> pd.DataFrame:
+    price_fields = {"open", "high", "low", "close", "vwap"}
+    count_fields = {"volume", "n_trades"}
+
+    if wide.empty:
+        return wide
+
+    if isinstance(wide.columns, pd.MultiIndex):
+        for field in fields:
+            if field in price_fields:
+                wide.loc[:, (field, slice(None))] = wide.loc[:, (field, slice(None))].ffill()
+            elif field in count_fields:
+                wide.loc[:, (field, slice(None))] = wide.loc[:, (field, slice(None))].fillna(0)
+        return wide
+
+    field = fields[0] if fields else "close"
+    if field in price_fields:
+        return wide.ffill()
+    if field in count_fields:
+        return wide.fillna(0)
+    return wide
