@@ -6,6 +6,13 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from equity_data_stack.corporate_actions import (
+    apply_price_adjustments,
+    apply_volume_adjustments,
+    load_dividend_cash_table,
+    load_split_ratio_table,
+)
+from equity_data_stack.exchange_calendar import get_trading_minutes
 from equity_data_stack.settings import Settings
 
 
@@ -16,6 +23,7 @@ def load_prices(
     end: datetime,
     fields: list[str] | None = None,
     data_root: Path | None = None,
+    fill_missing_bars: bool = True,
 ) -> pd.DataFrame:
     """Load price data into a wide DataFrame.
 
@@ -56,7 +64,79 @@ def load_prices(
     else:
         wide = df.pivot_table(index="timestamp", columns="symbol", values=fields)
 
-    return wide.sort_index()
+    wide = wide.sort_index()
+
+    if freq == "1min":
+        minutes = get_trading_minutes(start, end)
+        wide = wide.reindex(minutes)
+
+    if fill_missing_bars:
+        wide = wide.ffill()
+        wide = wide.bfill()
+
+    return wide
+
+
+def load_adjusted_prices(
+    *,
+    data_root: Path,
+    freq: str,
+    symbols: list[str],
+    start: datetime,
+    end: datetime,
+    price_field: str = "close",
+) -> pd.DataFrame:
+    """Load prices and apply split/dividend adjustments."""
+    prices = load_prices(
+        freq=freq,
+        symbols=symbols,
+        start=start,
+        end=end,
+        fields=[price_field],
+        data_root=data_root,
+    )
+    split_ratios = load_split_ratio_table(
+        data_root,
+        start=start.date(),
+        end=end.date(),
+        symbols=symbols,
+    )
+    dividend_cash = load_dividend_cash_table(
+        data_root,
+        start=start.date(),
+        end=end.date(),
+        symbols=symbols,
+    )
+    return apply_price_adjustments(
+        prices, split_ratios, dividend_cash, price_field=price_field
+    )
+
+
+def load_adjusted_volumes(
+    *,
+    data_root: Path,
+    freq: str,
+    symbols: list[str],
+    start: datetime,
+    end: datetime,
+    volume_field: str = "volume",
+) -> pd.DataFrame:
+    """Load volumes and apply split adjustments."""
+    volumes = load_prices(
+        freq=freq,
+        symbols=symbols,
+        start=start,
+        end=end,
+        fields=[volume_field],
+        data_root=data_root,
+    )
+    split_ratios = load_split_ratio_table(
+        data_root,
+        start=start.date(),
+        end=end.date(),
+        symbols=symbols,
+    )
+    return apply_volume_adjustments(volumes, split_ratios)
 
 
 def _ensure_utc(value: datetime) -> datetime:
