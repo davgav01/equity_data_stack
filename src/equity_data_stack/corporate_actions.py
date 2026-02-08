@@ -284,6 +284,19 @@ def _sanitize_split_ratios(ratios: pd.DataFrame) -> pd.DataFrame:
 def _sanitize_dividend_ratios(ratios: pd.DataFrame, cash: pd.DataFrame) -> pd.DataFrame:
     """Enforce dividend ratios in (0, 1] when cash is positive."""
     cash_positive = cash.gt(0)
+
+    # Check for negative dividends first
+    cash_negative = cash.lt(0)
+    if cash_negative.to_numpy().any():
+        count = int(cash_negative.sum().sum())
+        warnings.warn(
+            f"Negative dividends detected (count={count}); may be data errors or clawbacks.",
+            UserWarning,
+            stacklevel=2,
+        )
+        # Optionally filter them out or treat as no-op
+        # ratios = ratios.mask(cash_negative, 1.0)
+
     invalid = cash_positive & (~ratios.gt(0) | ratios.gt(1))
     if invalid.to_numpy().any():
         count = int(invalid.sum().sum())
