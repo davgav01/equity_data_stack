@@ -1,7 +1,7 @@
 """Corporate actions utilities for split/dividend tables and adjustments."""
 
 import warnings
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 import pandas as pd

@@ -22,6 +22,10 @@ class IngestionLog:
     def path(self) -> Path:
         return self.data_root / "logs" / "ingestion_log.parquet"
 
+    @property
+    def csv_path(self) -> Path:
+        return self.data_root / "logs" / "ingestion_log.csv"
+
     def load(self) -> pd.DataFrame:
         if not self.path.exists():
             return pd.DataFrame(columns=LOG_COLUMNS)
@@ -47,6 +51,7 @@ class IngestionLog:
         tmp_path = self.path.with_suffix(self.path.suffix + ".tmp")
         df.to_parquet(tmp_path, index=False)
         os.replace(tmp_path, self.path)
+        self._write_csv_mirror(df)
 
     def missing_dates(self, trading_days: list[date], freq: str) -> list[date]:
         df = self.load()
@@ -56,3 +61,24 @@ class IngestionLog:
         complete = df[(df["freq"] == freq) & (df["status"] == "complete")]["date"]
         complete_set = set(complete.tolist())
         return [day for day in trading_days if day.isoformat() not in complete_set]
+
+    def latest_complete_date(self, freq: str) -> date | None:
+        df = self.load()
+        if df.empty:
+            return None
+
+        complete = df[(df["freq"] == freq) & (df["status"] == "complete")]["date"]
+        if complete.empty:
+            return None
+        return date.fromisoformat(str(complete.max()))
+
+    def tail(self, limit: int = 50) -> pd.DataFrame:
+        df = self.load()
+        if limit <= 0:
+            return df.iloc[0:0]
+        return df.tail(limit)
+
+    def _write_csv_mirror(self, df: pd.DataFrame) -> None:
+        tmp_path = self.csv_path.with_suffix(self.csv_path.suffix + ".tmp")
+        df.to_csv(tmp_path, index=False)
+        os.replace(tmp_path, self.csv_path)
