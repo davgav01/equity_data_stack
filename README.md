@@ -50,6 +50,15 @@ equity-stack sync --freq 1d --start 2020-01-01 --end 2020-12-31 --write-universe
 # Ingest 1-minute bars into Parquet
 equity-stack sync --freq 1min --start 2020-01-01 --end 2020-12-31
 
+# Incrementally sync from the latest completed ingestion through the previous trading day
+equity-stack update
+
+# First update, or if a frequency has no completed log history yet
+equity-stack update --start 2020-01-01
+
+# Inspect recent ingestion events without opening Python
+equity-stack log-tail --limit 30
+
 # Sync reference tables via REST
 equity-stack sync-security-master
 equity-stack sync-corporate-actions --start 2020-01-01 --end 2020-12-31
@@ -57,6 +66,53 @@ equity-stack sync-corporate-actions --start 2020-01-01 --end 2020-12-31
 # Build split/dividend tables
 equity-stack build-corporate-actions-tables --start 2020-01-01 --end 2020-12-31
 
+```
+
+## Incremental Updates
+`equity-stack update` is the normal command for keeping the local data lake current.
+It reads `DATA_ROOT/logs/ingestion_log.parquet`, finds the latest completed date for
+each frequency, downloads missing Massive flat files, ingests them into Parquet, and
+refreshes security master and corporate action tables.
+
+The default end date is the previous NYSE trading day. By default the command updates
+both daily and 1-minute bars:
+```bash
+equity-stack update
+```
+
+Useful variants:
+```bash
+equity-stack update --freq 1d
+equity-stack update --end 2026-07-21
+equity-stack update --skip-reference-data
+```
+
+The Parquet ingestion log remains the source of truth. A CSV mirror is also written at
+`DATA_ROOT/logs/ingestion_log.csv` so it can be inspected with normal shell tools:
+```bash
+tail -n 30 DATA_ROOT/logs/ingestion_log.csv
+```
+
+## Nightly Automation
+On macOS, install the local LaunchAgent:
+```bash
+scripts/install_launchd_update.sh
+```
+
+It runs daily at 06:30 local time from this repo using `.venv/bin/equity-stack update`.
+Automation stdout/stderr logs are written under `DATA_ROOT/logs/automation/`.
+The update output is timestamped and includes resolved date windows, per-frequency raw
+download counts, Parquet ingest counts, reference-data status, and failure details.
+
+Inspect automation logs:
+```bash
+tail -n 100 DATA_ROOT/logs/automation/update.out.log
+tail -n 100 DATA_ROOT/logs/automation/update.err.log
+```
+
+Uninstall:
+```bash
+scripts/install_launchd_update.sh uninstall
 ```
 
 ## Python API
@@ -115,4 +171,3 @@ adj_volume = load_adjusted_volumes(
 - Lint: `ruff check .`
 - Tests: `pytest`
 - Format: `ruff check . --fix` (optional)
-
